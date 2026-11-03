@@ -25,8 +25,12 @@ export class AppService {
   }
 
   getProducts() {
-  throw new Error('Products service is broken in 1.2.0');
-}
+    return [
+      { id: 1, name: 'Laptop', price: 950 },
+      { id: 2, name: 'Phone', price: 600 },
+      { id: 3, name: 'Headset', price: 80 },
+    ];
+  }
 
   getUsers() {
     return [
