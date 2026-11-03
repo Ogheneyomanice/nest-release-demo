@@ -1,6 +1,6 @@
 {
   "name": "nest-release-demo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Small NestJS API used to practise versioned releases and rollback without Docker",
   "private": true,
   "scripts": {
