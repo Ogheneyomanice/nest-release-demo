@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tar.gz
+.env
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/tfplan

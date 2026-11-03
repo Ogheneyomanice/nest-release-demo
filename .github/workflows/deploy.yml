@@ -1,0 +1,93 @@
+name: Build and Deploy
+
+# Runs when you push a version tag such as v1.1.0, or when you start it by hand
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the NestJS app
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Read the version from package.json
+        id: meta
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check that the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+
+      - name: Package the release (built code + production dependencies)
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          mkdir release
+          cp -r dist package.json package-lock.json release/
+          cd release
+          npm ci --omit=dev
+          tar czf ../release-$VERSION.tar.gz .
+
+      - name: Keep the package for the deploy job
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: release-*.tar.gz
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download the package
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Copy the package to the server
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: scp -i ~/.ssh/deploy_key release-$VERSION.tar.gz ubuntu@$HOST:/tmp/
+
+      - name: Deploy on the server (keeps old versions, switches the symlink, checks health)
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: ssh -i ~/.ssh/deploy_key ubuntu@$HOST "/opt/nestapp/bin/deploy.sh $VERSION /tmp/release-$VERSION.tar.gz"

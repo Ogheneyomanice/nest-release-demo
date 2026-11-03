@@ -1,0 +1,38 @@
+name: Rollback
+
+# Start this by hand from the Actions tab and type the version to go back to
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to roll back to, for example 1.1.0'
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Use a version like 1.1.0"
+            exit 1
+          fi
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Switch the server back to that version
+        env:
+          VERSION: ${{ inputs.version }}
+          HOST: ${{ secrets.SERVER_HOST }}
+        run: ssh -i ~/.ssh/deploy_key ubuntu@$HOST "/opt/nestapp/bin/rollback.sh $VERSION"

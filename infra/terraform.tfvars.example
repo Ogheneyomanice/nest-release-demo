@@ -1,0 +1,6 @@
+# Copy this file to terraform.tfvars and change the values you need
+region          = "eu-west-2"
+owner           = "nice"
+instance_type   = "t2.micro"
+ssh_cidr        = "0.0.0.0/0"
+public_key_path = "~/.ssh/nest-deploy-key.pub"
